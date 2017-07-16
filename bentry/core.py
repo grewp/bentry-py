@@ -5,20 +5,34 @@ import CLI_input
 
 SAFE_MODE = False # prevents writing to excel
 
-wb = openpyxl.load_workbook('example.xlsx')
+WB_LOCATION = '/Users/bradpettigrew/Desktop/7-16to7-22automated.xlsx'
+
+wb = openpyxl.load_workbook(WB_LOCATION)
 sheet1 = wb.get_sheet_by_name(wb.get_sheet_names()[0])
 
 # TODO standardize how I reference categories, etc. so I reduce refactoring difficulty
 
+# TODO move this to an excel utils module
+def coordToCellname(coord):
+    """converts tuple coordinate to excel character/number cell ref"""
+    colName = get_column_letter(coord[1])
+    rowName = str(coord[0])
+    return colName + rowName
+
+
+def generateCellMap(fixedRow, columnTuples, categoryLabels):
+    """generates a dict of all row/columns mapped to category"""
+    eqnCols = map(lambda letter: column_index_from_string(letter), columnTuples)
+    eqnCoords = map(lambda col: (fixedRow, col), eqnCols)
+    return dict(zip(categoryLabels, eqnCoords))
+
+# TODO unit tests for this
+# expect generateCellMap(args) to equal expected outcome
+
 categories = ['Food', 'Entertainment', 'Transportation', 'Misc']
 
-firstRow = 9
-categoryAnchors = {
-    'Food': (firstRow, column_index_from_string('A')),
-    'Entertainment': (firstRow, column_index_from_string('E')),
-    'Transportation': (firstRow, column_index_from_string('I')),
-    'Misc': (firstRow, column_index_from_string('M'))}
-
+anchorDict = generateCellMap(9, ('A', 'E', 'I', 'M'), categories)
+eqnDict = generateCellMap(4, ('C', 'G', 'K', 'O'), categories)
 
 def findOpenCell(coordinate):
     """takes tuple cell coordinate and returns new tuple coordinate of first empty cell decending from origin"""
@@ -27,19 +41,14 @@ def findOpenCell(coordinate):
         rowIndex += 1
     return (rowIndex, coordinate[1])
 
-# TODO move this to unit tests
-# # findOpenCellUnit tests
-# print findOpenCell((7,1)) # expect (12,1)
-# print findOpenCell((2,3)) # expect (2,3)
-# print findOpenCell((7,4)) # expect (9,4)
-
 def filterCategories(inputDict):
     """returns array of dicts for each category"""
     return map(lambda category: filter(lambda entry: entry['category'] == category, inputDict), categories)
 
 def writeToCategory(array, category):
     """writes all entries of a category to that category column"""
-    cellAnchor = findOpenCell(categoryAnchors[category])
+    startCell = anchorDict[category]
+    openCell = findOpenCell(startCell)
     idx = 0
 
     for entry in array:
@@ -47,11 +56,18 @@ def writeToCategory(array, category):
         price = entry['price']
         date = entry['date']
 
-        sheet1.cell(row=cellAnchor[0]+idx, column=cellAnchor[1]).value = date
-        sheet1.cell(row=cellAnchor[0]+idx, column=cellAnchor[1]+1).value = name
-        sheet1.cell(row=cellAnchor[0]+idx, column=cellAnchor[1]+2).value = price
+        sheet1.cell(row=openCell[0]+idx, column=openCell[1]).value = date
+        sheet1.cell(row=openCell[0]+idx, column=openCell[1]+1).value = name
+        sheet1.cell(row=openCell[0]+idx, column=openCell[1]+2).value = price
         idx += 1
+    endCell = (openCell[0]+idx-1, openCell[1]+2)
+    updateEqn((startCell[0], startCell[1]+2), endCell, eqnDict[category])
 
+
+def updateEqn(startCell, endCell, eqnLocation):
+    """updates summation equation in excel sheet"""
+    newEqn ="=SUM({}:{})".format(coordToCellname(startCell), coordToCellname(endCell))
+    sheet1.cell(row=eqnLocation[0], column=eqnLocation[1]).value = newEqn
 
 
 for array in filterCategories(CLI_input.userInput()):
@@ -62,4 +78,4 @@ for array in filterCategories(CLI_input.userInput()):
             print array
 
 
-wb.save('example.xlsx')
+wb.save(WB_LOCATION)

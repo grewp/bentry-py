@@ -3,7 +3,7 @@ import datetime
 def getItem():
     item = raw_input("item: ")
 
-    if item.isalpha():
+    if item.replace(" ", "").isalpha():
         return item
     else:
         print 'Invalid input'
